@@ -1,6 +1,3 @@
-local esx = exports['es_extended']:getSharedObject()
-local cachedJobs = {}
-
 function player(client)
     return esx.GetPlayerFromId(client)
 end
@@ -18,14 +15,16 @@ end
 
 exports('getJobs', getJobs)
 
-function addJob(client, job, grade)
+function addJob(client, job, grade, event)
     local player = player(client)
     local jobs = getJobs(client)
     jobs[job] = grade
     cachedJobs[client] = jobs
     saveJobs(client, player)
-    player.setJob(job, grade)
-    cacheJobs_client(client)
+    if event then
+        player.setJob(job, grade)
+    end
+    cacheJobs(client)
 end
 
 exports('addJob', addJob)
@@ -37,7 +36,7 @@ function removeJob(client, job)
     cachedJobs[client] = jobs
     saveJobs(client, player)
     player.setJob('unemployed', 0)
-    cacheJobs_client(client)
+    cacheJobs(client)
 end
 
 exports('removeJob', removeJob)
@@ -51,7 +50,7 @@ function removeJobIdentifier(identifier, job)
         cachedJobs[client] = jobs
         saveJobs(client, player)
         player.setJob('unemployed', 0)
-        cacheJobs_client(client)
+        cacheJobs(client)
     else
         local result = MySQL.Sync.fetchAll('SELECT * FROM multijob WHERE identifier = @identifier', {
             ['@identifier'] = identifier
@@ -83,11 +82,10 @@ end
 
 exports('saveJobs', saveJobs)
 
-function cacheJobs_client(client)
+function cacheJobs(client)
     local jobs = {}
     for k, v in pairs(getJobs(client)) do
         local job = esx.Jobs[k]
-        print('caching', k, v)
         jobs[k] = {
             job_label = job.label,
             grade = v,
@@ -97,11 +95,8 @@ function cacheJobs_client(client)
     TriggerClientEvent('maku_multijob:client:cacheJobs', client, jobs, player(client).job.name)
 end
 
-exports('cacheJobs_client', cacheJobs_client)
-
-AddEventHandler('esx:playerLoaded', function(client)
-    init(client)
-end)
+exports('cacheJobs_client', cacheJobs) -- deprecated
+exports('cacheJobs', cacheJobs)
 
 function init(client)
     local player = player(client)
@@ -127,48 +122,3 @@ function init(client)
         })
     end
 end
-
-RegisterCommand('*initplayer', function(src)
-    init(src)
-end)
-
-AddEventHandler('esx:playerDropped', function(client)
-    local player = player(client)
-    saveJobs(client, player)
-end)
-
-RegisterNetEvent('maku_multijob:server:cacheJobs', function()
-    local client = source
-    cacheJobs_client(client)
-end)
-
-RegisterNetEvent('maku_multijob:server:selectJob', function(job)
-    local client = source
-    local player = player(client)
-    local jobs = getJobs(client)
-    local grade = nil
-    print(job)
-    print(jobs[job])
-    if not jobs[job] and job ~= 'unemployed' then
-        print('myb cheating?')
-        return
-    end
-    if job == 'unemployed' then
-        grade = 0
-    else
-        grade = jobs[job]
-    end
-    player.setJob(job, grade)
-    player.showNotification(('Přepl sis své zaměstnání na %s - %s.'):format(esx.Jobs[job].label,
-        esx.Jobs[job].grades[tostring(grade)].label), 'info')
-end)
-
-MySQL.ready(function()
-    MySQL.Async.execute([[
-        CREATE TABLE IF NOT EXISTS multijob (
-            identifier VARCHAR(255) NOT NULL,
-            jobs TEXT NOT NULL,
-            PRIMARY KEY (identifier)
-        )
-    ]])
-end)

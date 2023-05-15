@@ -24,7 +24,6 @@ function openMultijobMenu()
             })
         end
     end
-    --table.insert(elements, { label = '---', value = nil })
     table.insert(elements, { label = "<span style='color: orange'>Nezaměstnaný</span>", value = 'unemployed' })
     esx.UI.Menu.Open('default', GetCurrentResourceName(), 'multijob', {
         title = 'Multijob',
